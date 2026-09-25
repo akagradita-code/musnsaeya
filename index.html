@@ -657,7 +657,7 @@ function render(){
       const col=e.color||P.edge,on=sel&&sel.type==='edge'&&sel.id===e.id;
       const d=`M${s.x} ${s.y} Q${c.x} ${c.y} ${t.x} ${t.y}`;
       const dash=e.style==='dashed'?'7 5':e.style==='dotted'?'0.5 6':'';
-      EP+=`<g data-ep="${e.id}" tabindex="0" role="button" aria-label="${esc(edgeLabel(e)+(on?', 선택됨':''))}" pointer-events="none"><path class="fring" d="${d}" fill="none" stroke="${P.accent}" stroke-opacity=".5" stroke-width="10" stroke-linecap="round"/></g>`;
+      EP+=`<g data-ep="${e.id}" tabindex="0" role="button" aria-label="${esc(edgeLabel(e)+(on?', 선택됨':''))}" pointer-events="none"><path class="fring" opacity="0" d="${d}" fill="none" stroke="${P.accent}" stroke-opacity=".5" stroke-width="10" stroke-linecap="round"/></g>`;
       E+=`<g data-edge="${e.id}" aria-hidden="true" style="cursor:pointer"><path d="${d}" fill="none" stroke="transparent" stroke-width="20"/>`+
          `<path d="${d}" fill="none" stroke="${col}" stroke-width="${on?2.8:1.8}" stroke-linecap="round"${dash?` stroke-dasharray="${dash}"`:''}/>`;
       if(love){
@@ -692,7 +692,7 @@ function render(){
     const hx=(R+6)*0.707,hy=-(R+6)*0.707,showH=!connectMode&&!(drag&&drag.moved)&&(on||hoverId===n.id);
     const nl=`${n.name||'이름 없음'}${n.sub?', '+n.sub:''}${on?', 선택됨':''}${cf?', 관계 시작점':''}`;
     N+=`<g data-node="${n.id}" tabindex="0" role="button" aria-label="${esc(nl)}" transform="translate(${n.x} ${n.y})" style="cursor:pointer">`+
-       `<circle class="fring" r="${R+14}" fill="none" stroke="${P.accent}" stroke-width="3"/>`+
+       `<circle class="fring" opacity="0" r="${R+14}" fill="none" stroke="${P.accent}" stroke-width="3"/>`+
        ((on||cf)?`<circle r="${R+9}" fill="${P.accent}" fill-opacity="0.1" stroke="${P.accent}" stroke-width="1.6"${cf?' stroke-dasharray="3 3"':''}/>`:'')+
        `<circle r="${R+3}" fill="${P.surface}" filter="url(#sh)"/>${body}`+
        `<text y="${R+22}" text-anchor="middle" font-size="14" font-weight="600" letter-spacing="-0.2" font-family="${FONT}" fill="${P.ink}" ${halo}>${esc(n.name)}</text>`+
@@ -1055,7 +1055,7 @@ async function exportPNG(){
   const src=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${x0} ${y0} ${W} ${H}">`+
     fcss+bgSVG(x0,y0,W,H,P)+
     (S.title?`<text x="${x0+pad}" y="${y0+pad+14}" font-size="20" font-weight="700" letter-spacing="-0.6" font-family="${FONT}" fill="${P.ink}">${esc(S.title)}</text>`:'')+
-    layer.innerHTML+`</svg>`;
+    (()=>{const cl=layer.cloneNode(true);cl.querySelectorAll('[data-ep],.fring,[data-handle]').forEach(x=>x.remove());return cl.innerHTML})()+`</svg>`;
   [sel,connectFrom]=keep;render();
   const url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'})),img=new Image();
   img.onload=()=>{
