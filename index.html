@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>무슨 사이야 ㅡ 관계도 메이커</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/static/woff2/SUIT.css">
 <style>
 :root{
@@ -871,10 +874,18 @@ async function exportPNG(){
   const P=pal(),b=bbox(),pad=48,th=S.title?48:0;
   const W=Math.ceil(Math.max(b.w+pad*2,textW(S.title,20)+pad*2)),H=Math.ceil(b.h+pad*2+th);
   const x0=b.x+b.w/2-W/2,y0=b.y-pad-th;
+  const exportCSS=`<style>
+    .fring{opacity:0!important;pointer-events:none!important}
+    [data-handle]{display:none!important}
+    [data-node],[data-ep],[data-edge]{outline:none!important}
+  </style>`;
+  const exportLayer=layer.innerHTML
+    .replace(/<g[^>]*data-ep="[^"]*"[^>]*>.*?<\/g>/gs,'')
+    .replace(/<g[^>]*data-handle="[^"]*"[^>]*>.*?<\/g>/gs,'');
   const src=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${x0} ${y0} ${W} ${H}">`+
-    fcss+bgSVG(x0,y0,W,H,P)+
+    fcss+exportCSS+bgSVG(x0,y0,W,H,P)+
     (S.title?`<text x="${x0+pad}" y="${y0+pad+14}" font-size="20" font-weight="700" letter-spacing="-0.6" font-family="${FONT}" fill="${P.ink}">${esc(S.title)}</text>`:'')+
-    layer.innerHTML+`</svg>`;
+    exportLayer+`</svg>`;
   [sel,connectFrom]=keep;render();
   const url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'})),img=new Image();
   img.onload=()=>{
