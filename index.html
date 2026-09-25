@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>무슨 사이야 ㅡ 관계도 메이커</title>
-<link rel="icon" href="favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/static/woff2/SUIT.css">
 <style>
 :root{
@@ -214,6 +211,27 @@ svg.i{width:18px;height:18px;flex:none}
 .rel small{color:var(--mute);font-size:12.5px;flex:none;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tip{font-size:12.5px;color:var(--mute);line-height:1.65;margin:18px 0 0;padding:12px 14px;background:var(--hover);border-radius:12px}
 .tip b{color:var(--accent)}
+.field textarea{
+  display:block;width:100%;min-height:84px;resize:vertical;font:inherit;font-size:14px;line-height:1.6;color:var(--ink);
+  background:var(--hover);border:1px solid transparent;border-radius:10px;padding:10px 12px;
+}
+.field textarea:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.field textarea::placeholder{color:var(--mute)}
+.tagbox{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--hover);border:1px solid transparent;border-radius:10px;padding:6px 8px;min-height:44px}
+.tagbox:focus-within{border-color:var(--accent);background:var(--surface)}
+#tagList{display:contents}
+.tag{display:inline-flex;align-items:center;gap:1px;height:28px;padding:0 3px 0 10px;border-radius:999px;background:var(--accent-soft);font-size:13px;font-weight:500;max-width:100%}
+.tag b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag button{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--sub);font-size:16px;line-height:1;flex:none}
+.tag button:hover{background:var(--surface);color:var(--ink)}
+.field .tagbox input,.field .tagbox input:focus{flex:1;min-width:96px;width:auto;border:none;background:transparent;padding:5px 4px;font-size:14px}
+.field .tagbox input:focus-visible{outline:none}
+.cardprev{border-radius:14px;overflow:hidden;background:var(--hover)}
+.cardprev canvas{display:block;width:100%;height:auto}
+.btn.cardjump{width:100%;margin-top:10px;box-shadow:none;background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.btn.cardjump:hover{background:var(--accent-soft);filter:brightness(.97)}
+.btn.cardsave{width:100%;margin-top:10px;box-shadow:none}
+@media (pointer:coarse){.tag{height:34px}.tag button{width:30px;height:30px}}
 .if{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface)}
 .if .btn{box-shadow:none;height:42px;font-size:13.5px;flex:1}
 .if .btn.del{flex:none;width:42px;padding:0;color:var(--danger)}
@@ -355,6 +373,7 @@ const I={
   spark:ic('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'),
   grid:ic('<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>'),
   bg:ic('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 8"/>'),
+  card:ic('<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 9h8M8 13h8M8 17h5"/>'),
   swap:ic('<path d="M7 7h13l-4-4M17 17H4l4 4"/>')
 };
 document.querySelectorAll('[data-i]').forEach(el=>el.insertAdjacentHTML('afterbegin',I[el.dataset.i]));
@@ -472,6 +491,133 @@ function bgSVG(x,y,W,H,P){
   }
   if(b.type==='image'&&b.img)return `<rect ${box} fill="${P.canvas}"/><image href="${b.img}" ${box} preserveAspectRatio="xMidYMid slice"/><rect ${box} fill="${P.surface}" fill-opacity="${(b.dim||0)/100}"/>`;
   return `<rect ${box} fill="${P.canvas}"/>`;
+}
+
+/* ---------- 관계문 카드 ---------- */
+const CFONT=FONT.split(',').map(f=>{f=f.trim();return /^(sans-serif|serif|-apple-system|BlinkMacSystemFont)$/.test(f)?f:`"${f}"`}).join(', ');
+const cf=(w,sz)=>`${w} ${sz}px ${CFONT}`;
+const imgCache={};
+function getImg(src,cb){
+  if(!src)return null;let o=imgCache[src];
+  if(!o){o=imgCache[src]=new Image();o.cbs=[];o.onload=o.onerror=()=>{const c=o.cbs;o.cbs=[];c.forEach(f=>f())};o.src=src}
+  if(o.complete&&o.naturalWidth)return o;
+  if(cb)o.cbs.push(cb);return null;
+}
+function loadImg(src){return new Promise(res=>{if(!src||getImg(src,res))res()})}
+function wrapLines(ctx,text,maxW){
+  const out=[],fits=t=>ctx.measureText(t).width<=maxW;
+  for(const para of String(text).replace(/\r/g,'').split('\n')){
+    let line='';
+    for(const tok of para.split(/(\s+)/)){
+      if(!tok)continue;
+      if(fits(line+tok)){line+=tok;continue}
+      if(/^\s+$/.test(tok)){out.push(line.trimEnd());line='';continue}
+      if(line.trim()){out.push(line.trimEnd());line=''}
+      for(const ch of tok){if(fits(line+ch))line+=ch;else{out.push(line);line=ch}}
+    }
+    out.push(line.trimEnd());
+  }
+  return out;
+}
+function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function cardAlt(e){
+  const a=node(e.from),b=node(e.to),t=String(e.relationText||'').trim(),tg=e.tags||[];
+  return `관계문 카드: ${a?a.name:''} × ${b?b.name:''}${e.label?', '+e.label:''}${t?'. '+t.replace(/[.。]$/,''):''}${tg.length?'. '+tg.map(x=>'#'+x).join(' '):''}`;
+}
+function paintCard(cv,e,scale,redraw){
+  const P=pal(),a=node(e.from),b=node(e.to);if(!a||!b)return;
+  const col=e.color||P.edge,W=360,M=18,cw=W-M*2,pad=28,iw=cw-pad*2,cx=W/2;
+  const label=String(e.label||'').trim(),text=String(e.relationText||'').trim(),tags=e.tags||[],love=label==='연인';
+  const ctx=cv.getContext('2d');
+  const avatar=(n,x,y,r)=>{
+    ctx.save();
+    ctx.beginPath();ctx.arc(x,y,r+3,0,Math.PI*2);ctx.fillStyle=P.surface;ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=n.color||SW[0];ctx.fill();
+    const im=getImg(n.img,redraw);
+    if(im){ctx.clip();const k=Math.min(im.naturalWidth,im.naturalHeight);ctx.drawImage(im,(im.naturalWidth-k)/2,(im.naturalHeight-k)/2,k,k,x-r,y-r,r*2,r*2)}
+    else{ctx.fillStyle='#fff';ctx.font=cf(600,14);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(first(n.name),x,y+1)}
+    ctx.restore();
+  };
+  const run=draw=>{
+    let y=M+pad;
+    const AV=23,gap=AV-5;
+    if(draw){avatar(a,cx-gap,y+AV,AV);avatar(b,cx+gap,y+AV,AV)}
+    y+=AV*2+16;
+    // 이름
+    ctx.font=cf(700,19);ctx.textBaseline='alphabetic';ctx.textAlign='center';
+    const A=a.name||'',B=b.name||'',x_=' × ',full=A+x_+B;
+    if(ctx.measureText(full).width<=iw){
+      if(draw){
+        const wa=ctx.measureText(A).width,wx=ctx.measureText(x_).width,wb=ctx.measureText(B).width;let x=cx-(wa+wx+wb)/2;
+        ctx.textAlign='left';ctx.fillStyle=P.ink;ctx.fillText(A,x,y+19);x+=wa;
+        ctx.fillStyle=P.sub;ctx.fillText(x_,x,y+19);x+=wx;ctx.fillStyle=P.ink;ctx.fillText(B,x,y+19);ctx.textAlign='center';
+      }
+      y+=26;
+    }else{
+      const ls=wrapLines(ctx,full,iw);
+      if(draw){ctx.fillStyle=P.ink;ls.forEach((l,i)=>ctx.fillText(l,cx,y+19+i*26))}
+      y+=ls.length*26;
+    }
+    // 관계명
+    if(label){
+      y+=12;ctx.font=cf(600,14);
+      const ls=wrapLines(ctx,label,iw-40),lw=Math.max(...ls.map(l=>ctx.measureText(l).width));
+      const hw=love?18:0,w=lw+32+hw,h=12+ls.length*20;
+      if(draw){
+        rrect(ctx,cx-w/2,y,w,h,Math.min(15,h/2));ctx.fillStyle=P.surface;ctx.fill();
+        ctx.fillStyle=rgba(col,P.dark?.26:.16);ctx.fill();ctx.strokeStyle=rgba(col,.5);ctx.lineWidth=1.2;ctx.stroke();
+        if(love){ctx.save();ctx.translate(cx-lw/2-hw/2+2,y+h/2+0.8);ctx.scale(.9,.9);ctx.fillStyle=col;ctx.fill(new Path2D(HEART));ctx.restore()}
+        ctx.fillStyle=P.ink;ls.forEach((l,i)=>ctx.fillText(l,cx+hw/2,y+6+15+i*20));
+      }
+      y+=h;
+    }
+    // 관계문
+    if(text){
+      y+=18;ctx.font=cf(400,14.5);
+      const ls=wrapLines(ctx,text,iw);
+      if(draw){ctx.fillStyle=P.ink;ls.forEach((l,i)=>ctx.fillText(l,cx,y+17+i*24))}
+      y+=ls.length*24;
+    }
+    // 태그
+    if(tags.length){
+      y+=18;ctx.font=cf(500,12);
+      const rows=[[]];let rw=0;
+      for(const t of tags){
+        const lab='#'+t;let w=Math.min(ctx.measureText(lab).width+20,iw);
+        if(rows[rows.length-1].length&&rw+6+w>iw){rows.push([]);rw=0}
+        const r=rows[rows.length-1];rw+=(r.length?6:0)+w;r.push({lab,w});
+      }
+      rows.forEach((r,ri)=>{
+        const tw=r.reduce((s,c,i)=>s+c.w+(i?6:0),0);let x=cx-tw/2;const yy=y+ri*30;
+        if(draw)r.forEach(c=>{
+          rrect(ctx,x,yy,c.w,24,12);ctx.fillStyle=rgba(col,P.dark?.22:.12);ctx.fill();
+          ctx.save();rrect(ctx,x,yy,c.w,24,12);ctx.clip();ctx.fillStyle=P.sub;ctx.fillText(c.lab,x+c.w/2,yy+16.5);ctx.restore();
+          x+=c.w+6;
+        });
+      });
+      y+=rows.length*30-6;
+    }
+    return y+pad+M;
+  };
+  const H=Math.ceil(run(false));
+  cv.width=Math.round(W*scale);cv.height=Math.round(H*scale);
+  ctx.setTransform(scale,0,0,scale,0,0);
+  ctx.fillStyle=P.canvas;ctx.fillRect(0,0,W,H);ctx.fillStyle=rgba(col,P.dark?.18:.14);ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.shadowColor='rgba(30,20,50,.12)';ctx.shadowBlur=18;ctx.shadowOffsetY=4;
+  rrect(ctx,M,M,cw,H-M*2,22);ctx.fillStyle=P.surface;ctx.fill();ctx.restore();
+  rrect(ctx,M,M,cw,H-M*2,22);ctx.strokeStyle=rgba(col,.35);ctx.lineWidth=1.2;ctx.stroke();
+  run(true);
+}
+async function saveCard(e){
+  const a=node(e.from),b=node(e.to);if(!a||!b)return;
+  try{await Promise.all([cf(700,19),cf(600,14),cf(400,14.5),cf(500,12)].map(f=>document.fonts.load(f,'가나다')))}catch(_){}
+  await Promise.all([loadImg(a.img),loadImg(b.img)]);
+  const cv=document.createElement('canvas');paintCard(cv,e,4);
+  const name=`${a.name||'인물'}_${b.name||'인물'}_관계카드`.replace(/[\\/:*?"<>|]/g,'').trim()+'.png';
+  cv.toBlob(async bl=>{
+    if(!bl)return toast('카드 이미지를 만들지 못했어요',false,true);
+    const ok=await download(bl,name);if(ok!==false)toast('카드를 저장했어요');
+  },'image/png');
 }
 
 /* ---------- 되돌리기 ---------- */
@@ -810,14 +956,46 @@ function edgeInsp(e){
   <div class="ih"><h2>관계</h2><button class="x" id="close" title="닫기 (Esc)" aria-label="닫기">${I.x}</button></div>
   <div class="ib">
     <div class="pair">${who(a)}<span class="dir">${sym(e.dir)}</span>${who(b,true)}</div>
+    <button class="btn cardjump" id="cardJump">${I.card}관계 카드 만들기</button>
     <label class="field"><span>무슨 사이야?</span><input id="eLabel" maxlength="24" value="${esc(e.label)}" placeholder="직접 적거나 아래에서 골라요"></label>
     <div class="chips" id="chips" role="group" aria-label="관계 프리셋">${PRESETS.map(([l,c])=>`<button class="chip${e.label===l?' on':''}" data-p="${l}" aria-pressed="${e.label===l}" style="--c:${c}">${l}</button>`).join('')}</div>
+    <label class="field" id="cardSec"><span>관계문</span><textarea id="eText" rows="3" maxlength="400" placeholder="관계에 대한 내용을 자유롭게 입력하세요.">${esc(e.relationText||'')}</textarea></label>
+    <div class="field"><span id="tagLbl">태그</span><div class="tagbox" id="tagBox"><span id="tagList"></span><input id="tagIn" maxlength="20" placeholder="입력 후 Enter" aria-labelledby="tagLbl" aria-describedby="tagHelp"></div><span id="tagHelp" class="sr">Enter로 추가, 빈 칸에서 Backspace로 마지막 태그 삭제</span></div>
+    <div class="field"><span>카드 미리보기</span><div class="cardprev"><canvas id="cardCv" role="img"></canvas></div><button class="btn primary cardsave" id="cardSave">${I.down}PNG로 저장</button></div>
     <div class="field"><span>화살표</span><div class="seg" id="dir" role="group" aria-label="화살표">${dirs.map(([v,s,t])=>`<button data-v="${v}" class="${e.dir===v?'on':''}" aria-pressed="${e.dir===v}" title="${t}" aria-label="화살표 ${t}">${s}</button>`).join('')}</div></div>
     <div class="field"><span>선 모양</span><div class="seg" id="sty" role="group" aria-label="선 모양">${stys.map(([v,d,t])=>`<button data-v="${v}" class="${e.style===v?'on':''}" aria-pressed="${e.style===v}" title="${t}" aria-label="선 모양 ${t}"><svg width="46" height="8" aria-hidden="true"><line x1="4" y1="4" x2="42" y2="4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"${d?` stroke-dasharray="${d}"`:''}/></svg></button>`).join('')}</div></div>
     <div class="field"><span>선 색</span><div class="sw" id="sw" role="group" aria-label="선 색">${swatches(e.color,true)}</div></div>
   </div>
   <div class="if"><button class="btn" id="swapBtn">${I.swap}관계 방향 바꾸기</button><button class="btn del" id="delBtn" title="삭제 (Delete)" aria-label="삭제">${I.trash}</button></div>`;
-  bindText($('#eLabel'),v=>{e.label=v;insp.querySelectorAll('.chip').forEach(c=>{c.classList.toggle('on',c.dataset.p===v);c.setAttribute('aria-pressed',String(c.dataset.p===v))})});
+  const cv=$('#cardCv'),redraw=()=>{if(!cv.isConnected)return;paintCard(cv,e,Math.max(2,window.devicePixelRatio||1),redraw);cv.setAttribute('aria-label',cardAlt(e))};
+  const areaEl=$('#eText');let fresh=true;
+  areaEl.addEventListener('focus',()=>{fresh=true});
+  areaEl.addEventListener('input',()=>{if(fresh){snap();fresh=false}e.relationText=areaEl.value;save();redraw()});
+  const renderTags=()=>{
+    $('#tagList').innerHTML=(e.tags||[]).map((t,i)=>`<span class="tag"><b>#${esc(t)}</b><button type="button" data-t="${i}" aria-label="${esc(t)} 태그 삭제">×</button></span>`).join('');
+    redraw();
+  };
+  const tagIn=$('#tagIn');let pending=false;
+  const addTag=()=>{
+    const v=tagIn.value.replace(/^#+/,'').trim();if(!v)return;
+    const tags=e.tags||[];
+    if(tags.some(t=>t.toLowerCase()===v.toLowerCase())){toast('이미 있는 태그예요');tagIn.select();return}
+    snap();e.tags=[...tags,v];save();tagIn.value='';renderTags();
+  };
+  tagIn.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ev.preventDefault();ev.stopPropagation();if(ev.isComposing||ev.keyCode===229){pending=true;return}addTag();return}
+    if(ev.key==='Backspace'&&!tagIn.value&&(e.tags||[]).length&&!ev.isComposing){ev.stopPropagation();snap();e.tags=e.tags.slice(0,-1);save();renderTags()}
+  });
+  tagIn.addEventListener('compositionend',()=>{if(pending){pending=false;setTimeout(addTag,0)}});
+  $('#tagList').onclick=ev=>{const t=ev.target.closest('[data-t]');if(!t)return;snap();e.tags=(e.tags||[]).filter((_,i)=>i!==+t.dataset.t);save();renderTags();tagIn.focus()};
+  $('#cardSave').onclick=()=>saveCard(e);
+  $('#cardJump').onclick=()=>{
+    const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    $('#cardSec').scrollIntoView({behavior:calm?'auto':'smooth',block:'start'});
+    setTimeout(()=>areaEl.focus({preventScroll:true}),calm?0:300);
+  };
+  renderTags();
+  bindText($('#eLabel'),v=>{e.label=v;redraw();insp.querySelectorAll('.chip').forEach(c=>{c.classList.toggle('on',c.dataset.p===v);c.setAttribute('aria-pressed',String(c.dataset.p===v))})});
   $('#chips').onclick=ev=>{
     const c=ev.target.closest('[data-p]');if(!c)return;
     const p=PRESETS.find(x=>x[0]===c.dataset.p);snap();
@@ -874,18 +1052,10 @@ async function exportPNG(){
   const P=pal(),b=bbox(),pad=48,th=S.title?48:0;
   const W=Math.ceil(Math.max(b.w+pad*2,textW(S.title,20)+pad*2)),H=Math.ceil(b.h+pad*2+th);
   const x0=b.x+b.w/2-W/2,y0=b.y-pad-th;
-  const exportCSS=`<style>
-    .fring{opacity:0!important;pointer-events:none!important}
-    [data-handle]{display:none!important}
-    [data-node],[data-ep],[data-edge]{outline:none!important}
-  </style>`;
-  const exportLayer=layer.innerHTML
-    .replace(/<g[^>]*data-ep="[^"]*"[^>]*>.*?<\/g>/gs,'')
-    .replace(/<g[^>]*data-handle="[^"]*"[^>]*>.*?<\/g>/gs,'');
   const src=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${x0} ${y0} ${W} ${H}">`+
-    fcss+exportCSS+bgSVG(x0,y0,W,H,P)+
+    fcss+bgSVG(x0,y0,W,H,P)+
     (S.title?`<text x="${x0+pad}" y="${y0+pad+14}" font-size="20" font-weight="700" letter-spacing="-0.6" font-family="${FONT}" fill="${P.ink}">${esc(S.title)}</text>`:'')+
-    exportLayer+`</svg>`;
+    layer.innerHTML+`</svg>`;
   [sel,connectFrom]=keep;render();
   const url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'})),img=new Image();
   img.onload=()=>{
@@ -1085,7 +1255,7 @@ svg.addEventListener('keydown',ev=>{
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render)}catch(e){}
 
 applyBg();render();renderInsp();updUndo();requestAnimationFrame(fit);
-if(document.fonts)document.fonts.ready.then(()=>render());
+if(document.fonts)document.fonts.ready.then(()=>{render();if($('#cardCv'))renderInsp()});
 </script>
 </body>
 </html>
